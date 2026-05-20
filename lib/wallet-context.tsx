@@ -72,7 +72,12 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     if (storedKey && isFreighterInstalled()) {
       setPublicKey(storedKey)
       setIsConnected(true)
-      getAccountBalances(storedKey).then(setBalances).catch(console.error)
+      getAccountBalances(storedKey)
+        .then(setBalances)
+        .catch((error) => {
+          console.error("[v0] Error loading balances on startup:", error)
+          // Still keep the user connected even if balance loading fails
+        })
     }
   }, [])
 
@@ -80,7 +85,11 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!publicKey) return
 
-    const interval = setInterval(refreshBalances, 10000)
+    const interval = setInterval(() => {
+      refreshBalances().catch((error) => {
+        console.error("[v0] Error in balance refresh interval:", error)
+      })
+    }, 10000)
     return () => clearInterval(interval)
   }, [publicKey])
 
