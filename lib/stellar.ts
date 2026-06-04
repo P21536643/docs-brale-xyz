@@ -1,23 +1,23 @@
-import * as StellarSdk from "@stellar/stellar-sdk"
+import { Server, Asset, Networks, Operation, TransactionBuilder, BASE_FEE } from "@stellar/stellar-sdk"
 
 // Stellar Mainnet configuration
-export const server = new StellarSdk.Server("https://horizon.stellar.org")
-export const networkPassphrase = StellarSdk.Networks.PUBLIC
+export const server = new Server("https://horizon.stellar.org")
+export const networkPassphrase = Networks.PUBLIC
 
 // Pi Network token on Stellar (you'll need to verify the actual asset issuer)
 // This is a placeholder - replace with actual Pi Network asset issuer on Stellar
 export const PI_ASSET_ISSUER = "GBHUSIZH7HGO2NKIDJJHUMDPJQJKPV3PHJD52XLMSNZ6KMZ7ZQ5RG34K" // Replace with real issuer
-export const PI_ASSET = new StellarSdk.Asset("PI", PI_ASSET_ISSUER)
+export const PI_ASSET = new Asset("PI", PI_ASSET_ISSUER)
 
 // Common assets on Stellar
 export const USDC_ISSUER = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
 export const USDT_ISSUER = "GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V"
 
 export const ASSETS = {
-  XLM: StellarSdk.Asset.native(),
+  XLM: Asset.native(),
   PI: PI_ASSET,
-  USDC: new StellarSdk.Asset("USDC", USDC_ISSUER),
-  USDT: new StellarSdk.Asset("USDT", USDT_ISSUER),
+  USDC: new Asset("USDC", USDC_ISSUER),
+  USDT: new Asset("USDT", USDT_ISSUER),
 }
 
 export type AssetCode = keyof typeof ASSETS
@@ -99,18 +99,18 @@ export const getRecentTransactions = async (publicKey: string, limit = 20) => {
 export const createPaymentTransaction = async (
   sourcePublicKey: string,
   destinationPublicKey: string,
-  asset: StellarSdk.Asset,
+  asset: Asset,
   amount: string,
 ) => {
   try {
     const sourceAccount = await server.loadAccount(sourcePublicKey)
 
-    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-      fee: StellarSdk.BASE_FEE,
+    const transaction = new TransactionBuilder(sourceAccount, {
+      fee: BASE_FEE,
       networkPassphrase,
     })
       .addOperation(
-        StellarSdk.Operation.payment({
+        Operation.payment({
           destination: destinationPublicKey,
           asset,
           amount,
@@ -129,8 +129,8 @@ export const createPaymentTransaction = async (
 // Submit signed transaction
 export const submitTransaction = async (signedXdr: string) => {
   try {
-    const transaction = StellarSdk.TransactionBuilder.fromXDR(signedXdr, networkPassphrase)
-    const result = await server.submitTransaction(transaction as StellarSdk.Transaction)
+    const transaction = TransactionBuilder.fromXDR(signedXdr, networkPassphrase)
+    const result = await server.submitTransaction(transaction)
     return result
   } catch (error) {
     console.error("[v0] Error submitting transaction:", error)
@@ -139,7 +139,7 @@ export const submitTransaction = async (signedXdr: string) => {
 }
 
 // Get current exchange rates from Stellar DEX
-export const getExchangeRate = async (baseAsset: StellarSdk.Asset, counterAsset: StellarSdk.Asset) => {
+export const getExchangeRate = async (baseAsset: Asset, counterAsset: Asset) => {
   try {
     const orderbook = await server.orderbook(baseAsset, counterAsset).call()
 
@@ -158,20 +158,20 @@ export const getExchangeRate = async (baseAsset: StellarSdk.Asset, counterAsset:
 // Create swap transaction using Stellar DEX
 export const createSwapTransaction = async (
   sourcePublicKey: string,
-  sendAsset: StellarSdk.Asset,
+  sendAsset: Asset,
   sendAmount: string,
-  destAsset: StellarSdk.Asset,
+  destAsset: Asset,
   destMin: string,
 ) => {
   try {
     const sourceAccount = await server.loadAccount(sourcePublicKey)
 
-    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-      fee: StellarSdk.BASE_FEE,
+    const transaction = new TransactionBuilder(sourceAccount, {
+      fee: BASE_FEE,
       networkPassphrase,
     })
       .addOperation(
-        StellarSdk.Operation.pathPaymentStrictSend({
+        Operation.pathPaymentStrictSend({
           sendAsset,
           sendAmount,
           destination: sourcePublicKey, // Send to self for swap
