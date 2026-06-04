@@ -1,4 +1,4 @@
-import StellarSdk from "@stellar/stellar-sdk"
+import * as StellarSdk from "@stellar/stellar-sdk"
 
 // Stellar Mainnet configuration
 export const server = new StellarSdk.Server("https://horizon.stellar.org")
