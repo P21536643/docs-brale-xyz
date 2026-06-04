@@ -214,6 +214,46 @@ function SwapForm({
     }
   }
 
+  const handleContract = async () => {
+    if (!amount || Number.parseFloat(amount) <= 0) {
+      setError("Please enter a valid amount")
+      return
+    }
+
+    if (!rate) {
+      setError("Price not yet determined. Please wait for calculation.")
+      return
+    }
+
+    setError("")
+    setSuccess(false)
+    setLoading(true)
+
+    try {
+      console.log("[v0] Executing contract: Swap", amount, fromAsset, "for", toAsset, "at rate", rate)
+      const result = await swapAssets(publicKey, fromAsset, toAsset, amount)
+
+      if (result.success) {
+        setSuccess(true)
+        console.log("[v0] Contract executed successfully. Hash:", result.hash)
+        setAmount("")
+        setEstimatedAmount("")
+        setTimeout(() => {
+          onSuccess()
+          setSuccess(false)
+        }, 2000)
+      } else {
+        setError(result.error || "Contract execution failed. Please try again.")
+        console.error("[v0] Contract failed:", result.error)
+      }
+    } catch (err) {
+      console.error("[v0] Contract error:", err)
+      setError("An unexpected error occurred during contract execution")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const getBalance = (asset: AssetCode): string => {
     return balances[asset] || "0"
   }
@@ -309,20 +349,41 @@ function SwapForm({
             </Alert>
           )}
 
-          <Button
-            type="submit"
-            disabled={loading || calculating || !estimatedAmount || estimatedAmount === "N/A"}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Swapping...
-              </>
-            ) : (
-              "Swap Assets"
-            )}
-          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              type="submit"
+              disabled={loading || calculating || !estimatedAmount || estimatedAmount === "N/A"}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Swapping...
+                </>
+              ) : (
+                "Swap Assets"
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              onClick={handleContract}
+              disabled={loading || calculating || !estimatedAmount || estimatedAmount === "N/A" || !rate}
+              className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-semibold"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Broadcasting...
+                </>
+              ) : (
+                <>
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Contract
+                </>
+              )}
+            </Button>
+          </div>
 
           <Alert className="bg-purple-950/50 border-purple-800/50">
             <AlertCircle className="w-4 h-4 text-purple-400" />
