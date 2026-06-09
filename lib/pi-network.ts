@@ -1,214 +1,195 @@
-// Pi Network SDK Integration
-// Make sure the Pi Network SDK is loaded from layout.tsx
+// Local Pi Network Authentication (No External API Required)
 
 export interface PiUser {
   uid: string
   username: string
-  firstName: string
-  lastName: string
-  email?: string
-  avatar?: string
-}
-
-export interface PiPaymentDto {
-  amount: number
-  memo?: string
-  metadata?: Record<string, string>
+  email: string
 }
 
 export interface PiAuthResult {
   success: boolean
   user?: PiUser
   error?: string
-  token?: string
 }
 
-// Declare Pi global type
-declare global {
-  interface Window {
-    Pi?: {
-      init(options: { version: string; sandbox: boolean }): void
-      authenticate(): Promise<{ accessToken: string; user: PiUser }>
-      requestPayment(paymentDto: PiPaymentDto, metadata?: Record<string, string>): Promise<{ identifier: string }>
-      requestTransfer(paymentDto: PiPaymentDto, metadata?: Record<string, string>): Promise<{ identifier: string }>
-      getUserID(): Promise<string>
-      shareDialog(): Promise<{ requestId: string }>
-      logout(): Promise<void>
-    }
+// Simple password hashing (for demo purposes)
+const hashPassword = (password: string): string => {
+  let hash = 0
+  for (let i = 0; i < password.length; i++) {
+    const char = password.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash = hash & hash // Convert to 32bit integer
   }
+  return Math.abs(hash).toString(16)
 }
 
-// Check if Pi SDK is available
-export const isPiSdkAvailable = (): boolean => {
-  return typeof window !== "undefined" && window.Pi !== undefined
+// Generate unique user ID
+const generateUid = (): string => {
+  return "pi_" + Math.random().toString(36).substr(2, 9) + Date.now().toString(36)
 }
 
-// Initialize Pi Network SDK
-export const initializePiSdk = () => {
-  if (!isPiSdkAvailable()) {
-    console.warn("[v0] Pi Network SDK not loaded. Make sure the SDK script is included in your HTML.")
-    return
-  }
-
-  if (window.Pi) {
-    window.Pi.init({
-      version: "2.0",
-      sandbox: false, // Set to true for sandbox testing
-    })
-    console.log("[v0] Pi Network SDK initialized")
-  }
+// Local user database (stored in localStorage)
+interface StoredUser {
+  uid: string
+  username: string
+  email: string
+  passwordHash: string
 }
 
-// Authenticate with Pi Network
-export const authenticateWithPi = async (): Promise<PiAuthResult> => {
+const getStoredUsers = (): Record<string, StoredUser> => {
+  if (typeof window === "undefined") return {}
+  const users = localStorage.getItem("pi_users")
+  return users ? JSON.parse(users) : {}
+}
+
+const saveStoredUsers = (users: Record<string, StoredUser>) => {
+  if (typeof window === "undefined") return
+  localStorage.setItem("pi_users", JSON.stringify(users))
+}
+
+// Register a new user
+export const registerPiUser = async (username: string, email: string, password: string): Promise<PiAuthResult> => {
   try {
-    if (!isPiSdkAvailable()) {
-      return {
-        success: false,
-        error: "Pi Network SDK is not available. Please ensure the SDK is loaded.",
-      }
+    // Validate inputs
+    if (!username || username.length < 3) {
+      return { success: false, error: "Username must be at least 3 characters" }
+    }
+    if (!email || !email.includes("@")) {
+      return { success: false, error: "Invalid email address" }
+    }
+    if (!password || password.length < 6) {
+      return { success: false, error: "Password must be at least 6 characters" }
     }
 
-    if (!window.Pi) {
-      return {
-        success: false,
-        error: "Pi Network SDK is not initialized.",
-      }
+    const users = getStoredUsers()
+
+    // Check if username already exists
+    const usernameExists = Object.values(users).some((u) => u.username === username)
+    if (usernameExists) {
+      return { success: false, error: "Username already exists" }
     }
 
-    // Initialize SDK if not done already
-    initializePiSdk()
-
-    const result = await window.Pi.authenticate()
-
-    if (result && result.user) {
-      // Store auth data
-      const authData = {
-        user: result.user,
-        token: result.accessToken,
-        timestamp: Date.now(),
-      }
-      localStorage.setItem("pi_auth", JSON.stringify(authData))
-      console.log("[v0] Authenticated as Pi user:", result.user.username)
-
-      return {
-        success: true,
-        user: result.user,
-        token: result.accessToken,
-      }
+    // Check if email already exists
+    const emailExists = Object.values(users).some((u) => u.email === email)
+    if (emailExists) {
+      return { success: false, error: "Email already registered" }
     }
+
+    // Create new user
+    const uid = generateUid()
+    const newUser: StoredUser = {
+      uid,
+      username,
+      email,
+      passwordHash: hashPassword(password),
+    }
+
+    users[uid] = newUser
+    saveStoredUsers(users)
+
+    // Auto-login after registration
+    const sessionData = {
+      user: { uid, username, email },
+      timestamp: Date.now(),
+    }
+    localStorage.setItem("pi_session", JSON.stringify(sessionData))
+
+    console.log("[v0] User registered and logged in:", username)
 
     return {
+      success: true,
+      user: { uid, username, email },
+    }
+  } catch (error) {
+    console.error("[v0] Registration error:", error)
+    return {
       success: false,
-      error: "Authentication failed. User data not received.",
+      error: error instanceof Error ? error.message : "Registration failed",
+    }
+  }
+}
+
+// Login with username and password
+export const authenticateWithPi = async (username: string, password: string): Promise<PiAuthResult> => {
+  try {
+    const users = getStoredUsers()
+
+    // Find user by username
+    const user = Object.values(users).find((u) => u.username === username)
+    if (!user) {
+      return { success: false, error: "User not found" }
+    }
+
+    // Verify password
+    const passwordHash = hashPassword(password)
+    if (passwordHash !== user.passwordHash) {
+      return { success: false, error: "Invalid password" }
+    }
+
+    // Create session
+    const sessionData = {
+      user: { uid: user.uid, username: user.username, email: user.email },
+      timestamp: Date.now(),
+    }
+    localStorage.setItem("pi_session", JSON.stringify(sessionData))
+
+    console.log("[v0] Authenticated as Pi user:", username)
+
+    return {
+      success: true,
+      user: { uid: user.uid, username: user.username, email: user.email },
     }
   } catch (error) {
     console.error("[v0] Pi Network authentication error:", error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to authenticate with Pi Network",
+      error: error instanceof Error ? error.message : "Failed to authenticate",
     }
   }
 }
 
-// Check if user is authenticated with Pi
+// Check if user is authenticated
 export const isAuthenticatedWithPi = (): boolean => {
   if (typeof window === "undefined") return false
 
-  const piAuth = localStorage.getItem("pi_auth")
-  if (!piAuth) return false
+  const session = localStorage.getItem("pi_session")
+  if (!session) return false
 
   try {
-    const authData = JSON.parse(piAuth)
-    // Check if auth is still valid (24 hour expiration)
-    const age = Date.now() - authData.timestamp
+    const sessionData = JSON.parse(session)
+    // Check if session is still valid (24 hour expiration)
+    const age = Date.now() - sessionData.timestamp
     return age < 24 * 60 * 60 * 1000 // 24 hours in milliseconds
   } catch {
     return false
   }
 }
 
-// Get stored Pi authentication data
-export const getStoredPiAuth = (): { user: PiUser; token: string } | null => {
+// Get stored authentication data
+export const getStoredPiAuth = (): { user: PiUser } | null => {
   if (typeof window === "undefined") return null
 
-  const piAuth = localStorage.getItem("pi_auth")
-  if (!piAuth) return null
+  const session = localStorage.getItem("pi_session")
+  if (!session) return null
 
   try {
-    return JSON.parse(piAuth)
+    const sessionData = JSON.parse(session)
+    return { user: sessionData.user }
   } catch {
     return null
   }
 }
 
-// Logout from Pi Network
+// Logout
 export const logoutFromPi = () => {
-  if (isPiSdkAvailable() && window.Pi) {
-    window.Pi.logout().catch((error) => {
-      console.error("[v0] Error logging out from Pi Network:", error)
-    })
-  }
+  if (typeof window === "undefined") return
 
-  localStorage.removeItem("pi_auth")
+  localStorage.removeItem("pi_session")
   console.log("[v0] Logged out from Pi Network")
 }
 
-// Request a payment from Pi Network user
-export const requestPiPayment = async (amount: number, memo?: string): Promise<string | null> => {
-  try {
-    if (!isPiSdkAvailable() || !window.Pi) {
-      throw new Error("Pi Network SDK is not available")
-    }
-
-    const paymentDto: PiPaymentDto = {
-      amount,
-      memo,
-    }
-
-    const payment = await window.Pi.requestPayment(paymentDto)
-    console.log("[v0] Payment requested with identifier:", payment.identifier)
-
-    return payment.identifier
-  } catch (error) {
-    console.error("[v0] Pi payment request error:", error)
-    return null
-  }
-}
-
-// Request a transfer from Pi Network user
-export const requestPiTransfer = async (amount: number, memo?: string): Promise<string | null> => {
-  try {
-    if (!isPiSdkAvailable() || !window.Pi) {
-      throw new Error("Pi Network SDK is not available")
-    }
-
-    const paymentDto: PiPaymentDto = {
-      amount,
-      memo,
-    }
-
-    const transfer = await window.Pi.requestTransfer(paymentDto)
-    console.log("[v0] Transfer requested with identifier:", transfer.identifier)
-
-    return transfer.identifier
-  } catch (error) {
-    console.error("[v0] Pi transfer request error:", error)
-    return null
-  }
-}
-
-// Get Pi user ID
-export const getPiUserId = async (): Promise<string | null> => {
-  try {
-    if (!isPiSdkAvailable() || !window.Pi) {
-      throw new Error("Pi Network SDK is not available")
-    }
-
-    const userId = await window.Pi.getUserID()
-    return userId
-  } catch (error) {
-    console.error("[v0] Error getting Pi user ID:", error)
-    return null
-  }
+// Check if user exists
+export const userExists = (username: string): boolean => {
+  const users = getStoredUsers()
+  return Object.values(users).some((u) => u.username === username)
 }
