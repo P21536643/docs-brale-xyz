@@ -11,7 +11,7 @@ import { TransactionHistory } from "@/components/transaction-history"
 import { getMarketPrice, type AssetCode } from "@/lib/blockchain-transactions"
 
 export function Dashboard() {
-  const { publicKey, balances, disconnect, refreshBalances } = useWallet()
+  const { publicKey, balances, disconnect, refreshBalances, piUser, authMethod } = useWallet()
   const [activeTab, setActiveTab] = useState("overview")
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [copied, setCopied] = useState(false)
@@ -108,7 +108,11 @@ export function Dashboard() {
             <div className="flex items-center gap-2">
               <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg border border-white/20">
                 <Wallet className="w-4 h-4 text-purple-300" />
-                <span className="text-sm text-white font-mono">{publicKey && shortenAddress(publicKey)}</span>
+                {authMethod === "pi" && piUser ? (
+                  <span className="text-sm text-white font-mono">{piUser.username}</span>
+                ) : (
+                  <span className="text-sm text-white font-mono">{publicKey && shortenAddress(publicKey)}</span>
+                )}
                 <Button size="sm" variant="ghost" onClick={copyAddress} className="h-6 w-6 p-0 hover:bg-white/20">
                   {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3 text-purple-300" />}
                 </Button>

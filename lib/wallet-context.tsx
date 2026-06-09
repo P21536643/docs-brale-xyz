@@ -2,13 +2,16 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { connectFreighter, getAccountBalances, isFreighterInstalled } from "./stellar"
+import { authenticateWithPi, isAuthenticatedWithPi, getStoredPiAuth, logoutFromPi, type PiUser } from "./pi-network"
 
 interface WalletContextType {
   publicKey: string | null
   balances: Record<string, string>
   isConnected: boolean
   isLoading: boolean
-  connect: () => Promise<void>
+  piUser: PiUser | null
+  authMethod: "pi" | "freighter" | null
+  connect: (method: "pi" | "freighter") => Promise<void>
   disconnect: () => void
   refreshBalances: () => Promise<void>
 }
@@ -20,6 +23,8 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
   const [balances, setBalances] = useState<Record<string, string>>({})
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [piUser, setPiUser] = useState<PiUser | null>(null)
+  const [authMethod, setAuthMethod] = useState<"pi" | "freighter" | null>(null)
 
   const refreshBalances = async () => {
     if (!publicKey) return
@@ -32,28 +37,42 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const connect = async () => {
-    if (!isFreighterInstalled()) {
-      alert("Please install Freighter wallet extension to continue. Visit https://freighter.app")
-      window.open("https://freighter.app", "_blank")
-      return
-    }
-
+  const connect = async (method: "pi" | "freighter") => {
     setIsLoading(true)
     try {
-      const key = await connectFreighter()
-      setPublicKey(key)
-      setIsConnected(true)
+      if (method === "pi") {
+        const result = await authenticateWithPi()
+        if (result.success) {
+          setPiUser(result.user)
+          setAuthMethod("pi")
+          setIsConnected(true)
+          console.log("[v0] Pi Network authentication successful")
+        } else {
+          alert(result.error || "Failed to authenticate with Pi Network")
+        }
+      } else {
+        // Freighter connection
+        if (!isFreighterInstalled()) {
+          alert("Please install Freighter wallet extension to continue. Visit https://freighter.app")
+          window.open("https://freighter.app", "_blank")
+          return
+        }
 
-      // Store in localStorage
-      localStorage.setItem("stellar_public_key", key)
+        const key = await connectFreighter()
+        setPublicKey(key)
+        setAuthMethod("freighter")
+        setIsConnected(true)
 
-      // Load balances
-      const accountBalances = await getAccountBalances(key)
-      setBalances(accountBalances)
+        // Store in localStorage
+        localStorage.setItem("stellar_public_key", key)
+
+        // Load balances
+        const accountBalances = await getAccountBalances(key)
+        setBalances(accountBalances)
+      }
     } catch (error) {
       console.error("[v0] Connection error:", error)
-      alert("Failed to connect to Freighter wallet. Please try again.")
+      alert("Failed to connect. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -63,14 +82,30 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     setPublicKey(null)
     setBalances({})
     setIsConnected(false)
+    setPiUser(null)
+    setAuthMethod(null)
     localStorage.removeItem("stellar_public_key")
+    logoutFromPi()
   }
 
   // Auto-reconnect on page load
   useEffect(() => {
+    // Check Pi Network auth first
+    if (isAuthenticatedWithPi()) {
+      const piAuth = getStoredPiAuth()
+      if (piAuth) {
+        setPiUser(piAuth.user)
+        setAuthMethod("pi")
+        setIsConnected(true)
+        console.log("[v0] Auto-reconnected with Pi Network as", piAuth.user.username)
+      }
+    }
+
+    // Check Freighter auth
     const storedKey = localStorage.getItem("stellar_public_key")
     if (storedKey && isFreighterInstalled()) {
       setPublicKey(storedKey)
+      setAuthMethod("freighter")
       setIsConnected(true)
       getAccountBalances(storedKey)
         .then(setBalances)
@@ -100,6 +135,8 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
         balances,
         isConnected,
         isLoading,
+        piUser,
+        authMethod,
         connect,
         disconnect,
         refreshBalances,

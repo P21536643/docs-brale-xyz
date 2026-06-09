@@ -38,6 +38,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Pi Network SDK */}
+        <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+      </head>
       <body className={`font-sans antialiased`}>
         <WalletProvider>{children}</WalletProvider>
         <Analytics />
