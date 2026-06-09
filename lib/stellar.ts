@@ -1,4 +1,6 @@
-import { Server, Asset, Networks, Operation, TransactionBuilder, BASE_FEE } from "@stellar/stellar-sdk"
+import StellarSdk from "@stellar/stellar-sdk"
+
+const { Server, Asset, Networks, Operation, TransactionBuilder, BASE_FEE } = StellarSdk
 
 // Stellar Mainnet configuration
 export const server = new Server("https://horizon.stellar.org")
