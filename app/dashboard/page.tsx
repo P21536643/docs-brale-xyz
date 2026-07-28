@@ -22,6 +22,11 @@ export default async function DashboardPage() {
             <p className="text-gray-600 text-sm">Welcome, {session.user.name || session.user.email}</p>
           </div>
           <div className="flex gap-2">
+            <Link href="/wallet">
+              <Button variant="outline">
+                My Wallet
+              </Button>
+            </Link>
             <Link href="/mining">
               <Button variant="outline">
                 Mining Dashboard

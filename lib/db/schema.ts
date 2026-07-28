@@ -111,3 +111,42 @@ export const miningWithdrawals = pgTable('mining_withdrawals', {
   processedAt: timestamp('processedAt'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
 })
+
+// IsioloCoin wallet tables
+export const coinLinkWallets = pgTable('coin_link_wallets', {
+  id: serial('id').notNull().primaryKey(),
+  userId: text('userId').notNull().unique(),
+  walletAddress: text('walletAddress').notNull().unique(),
+  publicKey: text('publicKey'),
+  status: text('status').notNull().default('active'),
+  verifiedAt: timestamp('verifiedAt'),
+  lastSyncedAt: timestamp('lastSyncedAt'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+})
+
+export const walletBalances = pgTable('wallet_balances', {
+  id: serial('id').notNull().primaryKey(),
+  userId: text('userId').notNull().unique(),
+  walletAddress: text('walletAddress').notNull(),
+  balance: numeric('balance').default('0'),
+  unconfirmedBalance: numeric('unconfirmedBalance').default('0'),
+  totalReceived: numeric('totalReceived').default('0'),
+  totalSent: numeric('totalSent').default('0'),
+  lastUpdated: timestamp('lastUpdated').defaultNow(),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+})
+
+export const walletTransactions = pgTable('wallet_transactions', {
+  id: serial('id').notNull().primaryKey(),
+  userId: text('userId').notNull(),
+  transactionHash: text('transactionHash'),
+  type: text('type').notNull(),
+  fromAddress: text('fromAddress'),
+  toAddress: text('toAddress'),
+  amount: numeric('amount').notNull(),
+  status: text('status').notNull().default('pending'),
+  description: text('description'),
+  syncedAt: timestamp('syncedAt'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+})
